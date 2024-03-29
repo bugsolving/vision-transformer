@@ -72,16 +72,9 @@ train_list, valid_list = train_test_split(train_list,
 # 数据预处理
 transform = Compose([
     Resize((224, 224)),
-    RandomHorizontalFlip(),  # 随机水平翻转
-    RandomCrop(224, padding=4),  # 随机剪裁
     ToTensor(),
-    Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
+    Normalize((0.0, 0.0, 0.0), (1.0, 1.0, 1.0))
 ])
-
-
-
-
-
 
 # 创建数据加载器
 train_dataset = CustomDataset(train_list, labels, transform=transform)
@@ -308,11 +301,8 @@ for epoch in range(num_epochs):
     print ('Epoch [{}/{}], Train Loss: {:.4f}, Train Acc: {:.2f}%, Valid Loss: {:.4f}, Valid Acc: {:.2f}%'.format(
         epoch+1, num_epochs, train_loss, train_acc, valid_loss, valid_acc))
 
-    # 在每个epoch结束时保存模型的状态
-    if valid_loss < best_valid_loss:
-        best_valid_loss = valid_loss
-        torch.save(model.state_dict(), 'best_model.pth')
-        print('Model saved to best_model.pth')
+    torch.save(model.state_dict(), 'best_model.pth')
+    print('Model saved to best_model.pth')
 
 # 打印训练损失和验证损失
 print('Train Losses:', train_losses)
