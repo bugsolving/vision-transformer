@@ -60,26 +60,20 @@ class CustomDataset(Dataset):
         return image, label
 
 # 使用函数
-labels = load_labels('G:\\vision_transformer\\train\\pic', 'G:\\vision_transformer')
-train_list, test_list, labels = load_data('G:\\vision_transformer\\train\\pic', None, labels)
+labels = load_labels('/home/vision-transformer/train/pic', '/home/vision-transformer')
+train_list, test_list, labels = load_data('/home/vision-transformer/train/pic', None, labels)
 
-# 划分训练集和验证集
-train_list, valid_list = train_test_split(train_list, 
-                                          test_size=0.2,
-                                          stratify=[labels.get(i) for i in train_list],
-                                          random_state=42)
-
-# 数据预处理
+# 数据预处理和增强
 transform = Compose([
-    Resize((224, 224)),
+    Resize((256, 256)),  # 首先将图像大小调整为256x256
+    RandomCrop(224),  # 然后随机剪裁图像到224x224
+    RandomHorizontalFlip(),  # 随机水平翻转图像
     ToTensor(),
-    Normalize((0.0, 0.0, 0.0), (1.0, 1.0, 1.0))
+    Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))  # 归一化，这里的参数可以根据你的数据集进行调整
 ])
 
 # 创建数据加载器
-train_dataset = CustomDataset(train_list, labels, transform=transform)
-valid_dataset = CustomDataset(valid_list, labels, transform=transform)
-
+dataset = CustomDataset(train_list, labels, transform=transform)
 
 # 添加交叉验证
 k_folds = 5
@@ -96,11 +90,8 @@ for fold, (train_ids, test_ids) in enumerate(kfold.split(train_list)):
     test_subsampler = torch.utils.data.SubsetRandomSampler(test_ids)
 
     # 定义数据加载器
-    train_loader = DataLoader(train_dataset, batch_size=256, sampler=train_subsampler)
-    valid_loader = DataLoader(valid_dataset, batch_size=256, sampler=test_subsampler)
-
-
-
+    train_loader = DataLoader(dataset, batch_size=128, sampler=train_subsampler)
+    valid_loader = DataLoader(dataset, batch_size=128, sampler=test_subsampler)
 
 
 # 定义ViT模型___________________________________________________________________________________________________
@@ -241,14 +232,18 @@ model = ViT(
     image_size=224,
     patch_size=16,
     num_classes=45,
-    dim=512,
-    depth=8,
-    heads=8,
-    mlp_dim=2048,
+    dim=2048,
+    depth=24,
+    heads=16,
+    mlp_dim=4096,
 )
 model = model.cuda()  # 将模型移动到GPU
 criterion = nn.CrossEntropyLoss()
-optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
+optimizer = torch.optim.Adam(model.parameters(), lr=0.01)  # 初始学习率设置为0.01
+
+# 定义学习率调度器
+scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=20, gamma=0.01)
+
 
 # 训练模型
 num_epochs = 80
@@ -301,8 +296,12 @@ for epoch in range(num_epochs):
     print ('Epoch [{}/{}], Train Loss: {:.4f}, Train Acc: {:.2f}%, Valid Loss: {:.4f}, Valid Acc: {:.2f}%'.format(
         epoch+1, num_epochs, train_loss, train_acc, valid_loss, valid_acc))
 
-    torch.save(model.state_dict(), 'best_model.pth')
-    print('Model saved to best_model.pth')
+    # 如果当前的验证损失更低，就保存当前的模型参数
+    if valid_loss < best_valid_loss:
+        best_valid_loss = valid_loss
+        torch.save(model.state_dict(), 'best_model.pth')
+        print('Model saved to best_model.pth')
+
 
 # 打印训练损失和验证损失
 print('Train Losses:', train_losses)
